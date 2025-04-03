@@ -1,0 +1,141 @@
+"""
+query_and_intent.py
+
+Step 6:
+ - Ask the user for a query
+ - Embed it using BAAI/bge-small-en
+ - Retrieve top schema chunks from ChromaDB
+
+Step 7:
+ - Use Gemma 3-4b (instruction-tuned with chat templates) to extract
+   the 'intent' and 'entities' from the user query combined with the retrieved schema context.
+ - The model must respond with a single, valid JSON only.
+"""
+
+import torch
+from huggingface_hub import login
+from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# ----------------------------
+#   CONFIGURATION
+# ----------------------------
+HUGGINGFACE_TOKEN = ""  # 🔐 Insert your Hugging Face token here
+MODEL_ID = "google/gemma-3-4b-it"  # Using Gemma 3-4b
+DEVICE = "cpu"  # Change to "cuda" or "auto" if using a GPU
+
+CHROMA_COLLECTION_NAME = "schema_chunks"
+CHROMA_DB_PATH = "./chroma_db"
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en"
+
+# ----------------------------
+#   STEP 1: Authenticate with Hugging Face
+# ----------------------------
+login(HUGGINGFACE_TOKEN)
+
+# ----------------------------
+#   STEP 2: Load Gemma 3-4b Model & Processor
+# ----------------------------
+print("🔄 Loading Gemma 3-4b model...")
+model = Gemma3ForConditionalGeneration.from_pretrained(
+    MODEL_ID,
+    device_map=DEVICE
+).eval()
+processor = AutoProcessor.from_pretrained(MODEL_ID)
+
+# ----------------------------
+#   STEP 3: Load the Embedding Model for Schema Retrieval
+# ----------------------------
+print("🔄 Loading embedding model for schema retrieval...")
+embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+# ----------------------------
+#   STEP 4: Connect to Chroma DB and Retrieve Schema Chunks
+# ----------------------------
+chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+collection = chromadb.PersistentClient(path=CHROMA_DB_PATH).get_collection(name=CHROMA_COLLECTION_NAME)
+
+# ----------------------------
+#   STEP 5: Get User Query
+# ----------------------------
+user_query = input("\n💬 Enter your natural language query: ")
+
+# ----------------------------
+#   STEP 6: Vector Search over Schema
+# ----------------------------
+print("🔍 Searching for relevant schema chunks...")
+query_embedding = embedder.encode([user_query])
+results = collection.query(
+    query_embeddings=query_embedding,
+    n_results=3,
+    include=["documents", "metadatas", "distances"]
+)
+retrieved_chunks = results["documents"][0]
+print("\n🔎 Top Matching Schema Chunks:")
+for i, doc in enumerate(retrieved_chunks):
+    dist = results["distances"][0][i]
+    print(f"{i+1}. {doc} [Distance: {dist:.4f}]")
+
+# ----------------------------
+#   STEP 7: Intent & Entity Extraction with Gemma 3-4b Using Chat Templates
+# ----------------------------
+# Build the schema context from retrieved chunks
+schema_context = "\n".join([f"- {chunk}" for chunk in retrieved_chunks])
+
+# Construct chat-style messages:
+messages = [
+    {
+        "role": "system",
+        "content": [
+            {
+                "type": "text",
+                "text": (
+                    "You are a helpful backend assistant. Extract ONLY the intent and key entities from "
+                    "the user's query using the provided database schema context. Your output MUST be a valid JSON object "
+                    "with exactly two keys: 'intent' and 'entities'. Do not include any additional text."
+                )
+            }
+        ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": (
+                    f"User Query: \"{user_query}\"\n"
+                    f"Schema Context:\n{schema_context}\n"
+                    "Return only the JSON output."
+                )
+            }
+        ]
+    }
+]
+
+# Process the chat template into model inputs
+inputs = processor.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=True,
+    return_dict=True,
+    return_tensors="pt"
+).to(model.device, dtype=torch.bfloat16)
+
+# Determine input length to later slice off the prompt tokens
+input_len = inputs["input_ids"].shape[-1]
+
+# Generate the output using Gemma 3-4b
+print("\n🧠 Generating response from Gemma 3-4b...\n")
+with torch.inference_mode():
+    generation = model.generate(**inputs, max_new_tokens=300, do_sample=False)
+    # Remove the prompt tokens to extract only the generated response
+    generation = generation[0][input_len:]
+
+decoded_output = processor.decode(generation, skip_special_tokens=True)
+
+print("========== Gemma 3-4b Response ==========\n")
+print(decoded_output)
+print("==========================================\n")
+
+print("✅ Done!")
