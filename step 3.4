@@ -1,0 +1,136 @@
+"""
+query_and_intent.py
+
+Step 6: 
+ - Ask the user for a query
+ - Embed it using BAAI/bge-small-en
+ - Retrieve top schema chunks from Chroma
+
+Step 7:
+ - Use Microsoft phi-2 to extract 'intent' and 'entities' from the user query combined with the retrieved schema context.
+ - The model must respond with a single, valid JSON object containing exactly two keys: "intent" and "entities".
+"""
+
+import torch
+from huggingface_hub import login
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# ----------------------------
+#   CONFIGURATION
+# ----------------------------
+HUGGINGFACE_TOKEN = ""  # Replace with your Hugging Face token
+MODEL_NAME = "microsoft/phi-2"  # Using Microsoft phi-2
+DEVICE = "cpu"  # We're running on CPU
+
+CHROMA_COLLECTION_NAME = "schema_chunks"
+CHROMA_DB_PATH = "./chroma_db"
+
+# Embedding model for semantic search
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en"
+
+# ----------------------------
+#   STEP 1: Log in to Hugging Face
+# ----------------------------
+login(HUGGINGFACE_TOKEN)
+
+# ----------------------------
+#   STEP 2: Load phi-2 Model & Tokenizer
+# ----------------------------
+print("Loading phi-2 model... (this may take a while)")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME, 
+    torch_dtype="auto", 
+    trust_remote_code=True,
+    device_map=DEVICE
+)
+
+# ----------------------------
+#   STEP 3: Load the Embedding Model for Schema Retrieval
+# ----------------------------
+print("Loading embedding model for schema retrieval...")
+embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+# ----------------------------
+#   STEP 4: Connect to Chroma DB and Retrieve Schema Chunks
+# ----------------------------
+chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+collection = chroma_client.get_collection(name=CHROMA_COLLECTION_NAME)
+
+# ----------------------------
+#   STEP 5: Get User Query
+# ----------------------------
+user_query = input("\nEnter your natural language query: ")
+
+# ----------------------------
+#   STEP 6: Vector Search over Schema
+# ----------------------------
+print("\nEmbedding user query for vector search...")
+query_embedding = embedder.encode([user_query])
+
+results = collection.query(
+    query_embeddings=query_embedding,
+    n_results=3,
+    include=["documents", "metadatas", "distances"]
+)
+
+retrieved_chunks = results["documents"][0]
+print("\n🔍 Top Matching Schema Chunks:\n")
+for i, doc in enumerate(retrieved_chunks):
+    dist = results["distances"][0][i]
+    print(f"{i+1}. {doc} [Distance: {dist:.4f}]")
+
+# ----------------------------
+#   STEP 7: Intent & Entity Extraction with phi-2
+# ----------------------------
+schema_context = "\n".join([f"- {chunk}" for chunk in retrieved_chunks])
+
+# Build a prompt instructing the model to output only valid JSON with two keys.
+prompt = f"""You are a helpful assistant that extracts only the user's intent and key entities from their query given the database schema context.
+
+User Query: "{user_query}"
+
+Schema Context:
+{schema_context}
+
+Task:
+1. Identify the user's intent as a short label.
+2. Identify key entities or parameters from the query (e.g., year, limit, sum, filter).
+3. Return a valid JSON object with exactly two keys: "intent" and "entities". Do not include any additional text.
+
+Example Output:
+{{
+  "intent": "GetTopCustomers",
+  "entities": {{
+     "year": "2023",
+     "limit": 10
+  }}
+}}
+"""
+
+print("\n==========================================================")
+print("phi-2 Prompt:\n")
+print(prompt)
+print("==========================================================\n")
+
+# Tokenize and send the prompt to the model
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+
+print("Generating phi-2 output...\n")
+outputs = model.generate(
+    input_ids,
+    max_length=512,
+    temperature=0.2,   # Lower temperature for more deterministic output
+    top_p=0.9,
+    do_sample=True
+)
+
+decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+print("========== phi-2 Response ==========\n")
+print(decoded_output)
+print("=======================================\n")
+
+print("Done!")
