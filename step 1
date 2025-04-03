@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine, MetaData
 from sentence_transformers import SentenceTransformer
 import chromadb
-from chromadb.config import Settings
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 # --- CONFIG ---
@@ -23,12 +22,12 @@ metadata.reflect(bind=engine)
 def describe_table(table):
     columns = [f"{col.name} ({col.type})" for col in table.columns]
     desc = f"Table '{table.name}' has columns: " + ", ".join(columns) + "."
-    
+
     # Optionally add foreign keys
     fks = [fk for col in table.columns for fk in col.foreign_keys]
     if fks:
         desc += " Foreign keys: " + ", ".join([f"{fk.column.table.name}.{fk.column.name}" for fk in fks]) + "."
-    
+
     return desc
 
 table_chunks = []
@@ -42,13 +41,17 @@ for table in metadata.sorted_tables:
 model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 embeddings = model.encode(table_chunks)
 
-# --- 4. Store in Chroma ---
-chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_db"))
+# --- 4. Store in Chroma (Updated API) ---
+# Chroma changed to new PersistentClient API – this is the correct way now
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+
+# Create or get collection
 if CHROMA_COLLECTION_NAME in [c.name for c in chroma_client.list_collections()]:
     collection = chroma_client.get_collection(name=CHROMA_COLLECTION_NAME)
 else:
     collection = chroma_client.create_collection(name=CHROMA_COLLECTION_NAME)
 
+# Add schema chunks to vector DB
 collection.add(
     documents=table_chunks,
     embeddings=embeddings,
