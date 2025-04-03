@@ -1,0 +1,25 @@
+from llama_cpp import Llama
+
+# Load the model
+llm = Llama(
+    model_path="models/mistral-7b-instruct.Q4_K_M.gguf",
+    n_ctx=2048,
+    n_threads=6,  # adjust based on your CPU
+    verbose=True
+)
+
+print("🧠 Mistral Chatbot ready! Type 'exit' to quit.\n")
+
+# Chat loop
+while True:
+    user_input = input("You: ").strip()
+    if user_input.lower() in ["exit", "quit"]:
+        break
+
+    # Format as instruction-style prompt
+    prompt = f"[INST] {user_input} [/INST]"
+
+    output = llm(prompt, max_tokens=200)
+    reply = output["choices"][0]["text"].strip()
+
+    print(f"🤖 Mistral: {reply}\n")
