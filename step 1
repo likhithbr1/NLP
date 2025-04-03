@@ -1,0 +1,59 @@
+from sqlalchemy import create_engine, MetaData
+from sentence_transformers import SentenceTransformer
+import chromadb
+from chromadb.config import Settings
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+
+# --- CONFIG ---
+DB_USERNAME = "your_username"
+DB_PASSWORD = "your_password"
+DB_HOST = "localhost"
+DB_PORT = "3306"
+DB_NAME = "your_database_name"
+
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en"
+CHROMA_COLLECTION_NAME = "schema_chunks"
+
+# --- 1. Connect to MySQL using SQLAlchemy ---
+engine = create_engine(f"mysql+pymysql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+metadata = MetaData()
+metadata.reflect(bind=engine)
+
+# --- 2. Generate natural language chunks ---
+def describe_table(table):
+    columns = [f"{col.name} ({col.type})" for col in table.columns]
+    desc = f"Table '{table.name}' has columns: " + ", ".join(columns) + "."
+    
+    # Optionally add foreign keys
+    fks = [fk for col in table.columns for fk in col.foreign_keys]
+    if fks:
+        desc += " Foreign keys: " + ", ".join([f"{fk.column.table.name}.{fk.column.name}" for fk in fks]) + "."
+    
+    return desc
+
+table_chunks = []
+table_names = []
+for table in metadata.sorted_tables:
+    chunk = describe_table(table)
+    table_chunks.append(chunk)
+    table_names.append(table.name)
+
+# --- 3. Generate embeddings ---
+model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+embeddings = model.encode(table_chunks)
+
+# --- 4. Store in Chroma ---
+chroma_client = chromadb.Client(Settings(chroma_db_impl="duckdb+parquet", persist_directory="./chroma_db"))
+if CHROMA_COLLECTION_NAME in [c.name for c in chroma_client.list_collections()]:
+    collection = chroma_client.get_collection(name=CHROMA_COLLECTION_NAME)
+else:
+    collection = chroma_client.create_collection(name=CHROMA_COLLECTION_NAME)
+
+collection.add(
+    documents=table_chunks,
+    embeddings=embeddings,
+    ids=[f"{name}_chunk" for name in table_names],
+    metadatas=[{"table_name": name} for name in table_names]
+)
+
+print(f"✅ {len(table_chunks)} schema chunks embedded and stored in Chroma.")
