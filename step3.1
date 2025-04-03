@@ -1,0 +1,70 @@
+# ----------------------------
+#   STEP 7: Intent & Entity Extraction with Gemma 2B
+# ----------------------------
+# We'll do a one-shot example in the prompt:
+few_shot_example = """Example Interaction:
+User Query: "Which customers spent the most in 2022?"
+Schema Context:
+- Table 'orders' has columns: order_id (INTEGER), customer_id (INTEGER), order_date (DATE), ...
+- Table 'customers' has columns: customer_id (INTEGER), ...
+Output in JSON (no extra text):
+{
+  "intent": "GetTopSpendingCustomers",
+  "entities": {
+    "year": "2022",
+    "sort_by": "total_amount"
+  }
+}
+"""
+
+schema_context = "\n".join([f"- {chunk}" for chunk in retrieved_chunks])
+
+prompt = f"""You are an assistant that extracts the user's intent and key entities from their question, given a database schema context.
+
+{few_shot_example}
+
+Now, please analyze the following query using the same format:
+
+User Query: "{user_query}"
+
+Schema Context:
+{schema_context}
+
+Instructions:
+1. Identify the user's intent (a short label or phrase).
+2. Identify the key entities or parameters from the query (e.g., year, limit, sum, filter).
+3. Return only valid JSON, with no extra text or explanation. 
+Use this JSON structure exactly:
+{{
+  "intent": "...",
+  "entities": {{ ... }}
+}}
+
+Important: Do NOT include any additional text beyond the JSON.
+"""
+
+print("\n==========================================================")
+print("Gemma 2B Prompt:\n")
+print(prompt)
+print("==========================================================\n")
+
+# Tokenize
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+
+# Generate LLM output
+print("Generating Gemma 2B output...\n")
+outputs = model.generate(
+    input_ids,
+    max_length=512,
+    temperature=0.1,   # Lower temperature = more deterministic
+    top_p=0.9,
+    do_sample=True
+)
+
+decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+print("========== Gemma 2B Response ==========\n")
+print(decoded_output)
+print("=======================================\n")
+
+print("Done!")
