@@ -1,0 +1,35 @@
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# --- CONFIG ---
+CHROMA_COLLECTION_NAME = "schema_chunks"
+CHROMA_DB_PATH = "./chroma_db"
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en"
+
+# --- 1. Load the embedding model ---
+embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+# --- 2. Connect to Chroma DB ---
+chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+collection = chroma_client.get_collection(name=CHROMA_COLLECTION_NAME)
+
+# --- 3. Accept user query ---
+user_query = input("Enter your natural language query: ")
+
+# --- 4. Generate embedding for the query ---
+query_embedding = embedder.encode([user_query])
+
+# --- 5. Perform vector search ---
+results = collection.query(
+    query_embeddings=query_embedding,
+    n_results=3,
+    include=["documents", "metadatas", "distances"]
+)
+
+# --- 6. Print matched schema chunks ---
+print("\n🔍 Top Matching Schema Chunks:\n")
+for i, doc in enumerate(results["documents"][0]):
+    print(f"{i+1}. {doc} [Distance: {results['distances'][0][i]:.4f}]")
+
+# Optional: Return these as a list for use in Step 7
+retrieved_chunks = results["documents"][0]
