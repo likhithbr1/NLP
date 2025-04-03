@@ -1,0 +1,144 @@
+"""
+query_and_intent.py
+
+Step 6: 
+ - Ask user for a query
+ - Embed it using BAAI/bge-small-en
+ - Retrieve top schema chunks from Chroma
+
+Step 7:
+ - Use Gemma 2B to extract 'intent' and 'entities' from the user query + retrieved schema context
+"""
+
+import torch
+from huggingface_hub import login
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+# ----------------------------
+#   CONFIG
+# ----------------------------
+HUGGINGFACE_TOKEN = ""  # Replace with your token
+MODEL_NAME = "google/gemma-2b"
+
+# If you have a CUDA-enabled GPU with enough VRAM, change device_map to "cuda"
+# or "auto". For CPU-based run, you can keep "cpu".
+DEVICE = "cpu"
+
+# Chroma DB settings
+CHROMA_COLLECTION_NAME = "schema_chunks"
+CHROMA_DB_PATH = "./chroma_db"
+
+# Embedding model for semantic search
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en"
+
+# ----------------------------
+#   STEP 1: Log in to Hugging Face (required for Gemma 2B if it's gated)
+# ----------------------------
+login(HUGGINGFACE_TOKEN)
+
+# ----------------------------
+#   STEP 2: Load Gemma 2B Model & Tokenizer
+# ----------------------------
+print("Loading Gemma 2B model... (this may take a while)")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME, 
+    torch_dtype=torch.bfloat16, 
+    device_map=DEVICE
+)
+
+# ----------------------------
+#   STEP 3: Load Embedding Model
+# ----------------------------
+print("Loading embedding model for schema retrieval...")
+embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+# ----------------------------
+#   STEP 4: Connect to Chroma DB
+# ----------------------------
+chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+collection = chroma_client.get_collection(name=CHROMA_COLLECTION_NAME)
+
+# ----------------------------
+#   STEP 5: Get User Query
+# ----------------------------
+user_query = input("\nEnter your natural language query: ")
+
+# ----------------------------
+#   STEP 6: Vector Search over Schema
+# ----------------------------
+print("\nEmbedding user query for vector search...")
+query_embedding = embedder.encode([user_query])
+
+# Retrieve top-k = 3 schema chunks from Chroma
+results = collection.query(
+    query_embeddings=query_embedding,
+    n_results=3,
+    include=["documents", "metadatas", "distances"]
+)
+
+retrieved_chunks = results["documents"][0]
+print("\n🔍 Top Matching Schema Chunks:\n")
+for i, doc in enumerate(retrieved_chunks):
+    dist = results["distances"][0][i]
+    print(f"{i+1}. {doc} [Distance: {dist:.4f}]")
+
+# ----------------------------
+#   STEP 7: Intent & Entity Extraction with Gemma 2B
+# ----------------------------
+# We’ll build a prompt that includes:
+#  - the user query
+#  - the top schema chunks
+#  - an instruction to return JSON with "intent" and "entities"
+
+# Build a single prompt from the relevant schema chunks
+schema_context = "\n".join([f"- {chunk}" for chunk in retrieved_chunks])
+
+prompt = f"""You are a helpful assistant that extracts the user's intent and key entities from their question, given a database schema context.
+
+User Query: "{user_query}"
+
+Schema Context:
+{schema_context}
+
+Task:
+1. Identify the user's intent (a short label or phrase).
+2. Identify the key entities or parameters from the query (e.g., year, limit, sum, filter).
+3. Return them in valid JSON. Example:
+{{
+  "intent": "...",
+  "entities": {{
+     "year": "...",
+     "limit": 10
+  }}
+}}
+"""
+
+print("\n==========================================================")
+print("Gemma 2B Prompt:\n")
+print(prompt)
+print("==========================================================\n")
+
+# Tokenize
+input_ids = tokenizer.encode(prompt, return_tensors="pt").to(model.device)
+
+# Generate LLM output
+print("Generating Gemma 2B output...\n")
+outputs = model.generate(
+    input_ids,
+    max_length=512,
+    temperature=0.2,   # lower = more deterministic
+    top_p=0.9,
+    do_sample=True
+)
+
+decoded_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+print("========== Gemma 2B Response ==========\n")
+print(decoded_output)
+print("=======================================\n")
+
+print("Done!")
