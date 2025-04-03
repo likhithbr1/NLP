@@ -1,0 +1,19 @@
+def extract_sql_query(text: str) -> str:
+    """
+    Extracts the SQL query from the model's response.
+    Removes ```sql blocks and grabs the first valid SQL statement.
+    """
+    # Remove markdown-style SQL code block (```sql ... ```)
+    text = text.strip()
+    if text.startswith("```sql"):
+        text = text.removeprefix("```sql").strip()
+    if text.endswith("```"):
+        text = text.removesuffix("```").strip()
+
+    # Now extract the actual SQL query
+    pattern = re.compile(r"(?i)(SELECT|INSERT|UPDATE|DELETE).*?;", re.DOTALL)
+    match = pattern.search(text)
+    if match:
+        return match.group(0).strip()
+    else:
+        return text.strip()
