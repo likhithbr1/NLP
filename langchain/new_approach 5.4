@@ -1,0 +1,33 @@
+from pydantic import PrivateAttr
+
+class MistralLLM(BaseChatModel):
+    _llama: Llama = PrivateAttr()
+    _verbose: bool = PrivateAttr()
+
+    def __init__(self, model_path: str, n_ctx: int = 2048, n_threads: int = 6, verbose: bool = True):
+        super().__init__()
+        self._verbose = verbose
+        self._llama = Llama(
+            model_path=model_path,
+            n_ctx=n_ctx,
+            n_threads=n_threads,
+            verbose=verbose,
+        )
+        print("✅ Model loaded!")
+
+    def _llm_type(self) -> str:
+        return "mistral"
+
+    def _generate(self, messages: List[HumanMessage], **kwargs) -> ChatResult:
+        full_prompt = messages[-1].content if messages else ""
+        output = self._llama(full_prompt, max_tokens=512, stop=["</s>", "SQL:"])
+        return ChatResult(generations=[ChatGeneration(message=HumanMessage(content=output["choices"][0]["text"].strip()))])
+
+    def bind_tools(self, tools):
+        return self
+
+    def __getattr__(self, name):
+        # Fallback for LangChain compatibility
+        if name in {"callbacks", "tags", "metadata", "cache", "verbose"}:
+            return None
+        raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
