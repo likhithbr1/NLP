@@ -1,0 +1,96 @@
+Awesome — Vue is a great choice for quickly building a clean and reactive frontend. Below is a **detailed prompt** that you can give to another AI model (like GPT-4, Claude, Copilot, etc.) to generate the **entire frontend** of your chatbot using Vue.js.
+
+This prompt includes:
+- API contract
+- UI behavior and layout
+- Data flow
+- ChatGPT-like look and feel
+
+---
+
+## ✅ Detailed Prompt to Generate the Vue Frontend
+
+> I am building a frontend in **Vue.js (latest version with Composition API)** for a backend LLM-powered chatbot that converts natural language questions into SQL and returns database results.
+>
+> ### 🎯 GOAL:
+> Build a single-page web application (SPA) that behaves like ChatGPT, with:
+> - A chat-like interface
+> - Input box at the bottom
+> - Messages displayed as bubbles (left for user, right for bot)
+> - When the user submits a question:
+>     - Send it to the backend API
+>     - Show the **generated SQL query**
+>     - Display the **results in a table**
+>
+> ---
+>
+> ### 📦 API CONTRACT:
+>
+> #### `POST /api/query`
+> - **Request (JSON)**:
+> ```json
+> { "question": "List all products with zero stock" }
+> ```
+>
+> - **Response (JSON)**:
+> ```json
+> {
+>   "sql": "SELECT * FROM products WHERE stock = 0;",
+>   "results": [
+>     { "id": 1, "name": "Laptop", "stock": 0 },
+>     { "id": 2, "name": "Mouse", "stock": 0 }
+>   ]
+> }
+> ```
+>
+> - This API is hosted at: `http://localhost:5000`
+> - CORS is already enabled on the backend
+>
+> ---
+>
+> ### 🖼️ FRONTEND UI REQUIREMENTS:
+>
+> - Vue 3 with Composition API
+> - Use `axios` or `fetch` to call the API
+> - A `chat window` where each user input and system response is shown
+> - Show:
+>   - **User's question** in a message bubble (left)
+>   - **Bot's response** in two parts (right):
+>     - The generated SQL (in a code block or styled div)
+>     - The DB results in a `<table>`
+> - Input bar should be at the bottom of the screen (like ChatGPT)
+> - Show loading spinner or "Thinking..." while waiting for the response
+> - Handle and display errors if API fails
+> - Make it visually clean and minimal (like ChatGPT)
+>
+> ---
+>
+> ### ✨ BONUS (Optional):
+> - Use `Tailwind CSS` for styling if you can
+> - Auto-scroll to the latest message
+> - Support pressing `Enter` to send message
+
+---
+
+### ✅ Example of what the chat flow should look like:
+
+```
+[User Bubble]
+🧍 You: List all products with zero stock
+
+[Bot Bubble]
+🤖 SQL:
+SELECT * FROM products WHERE stock = 0;
+
+📊 Results:
+| id | name   | stock |
+|----|--------|--------|
+| 1  | Laptop | 0     |
+| 2  | Mouse  | 0     |
+```
+
+---
+
+This prompt gives the AI model everything it needs: the **API behavior**, the **frontend layout**, and the **visual flow** — so it can generate a complete Vue.js frontend app in one go.
+
+Let me know if you'd like a version of this structured as a Markdown handoff or added with mock APIs for testing.
