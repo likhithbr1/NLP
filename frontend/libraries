@@ -1,0 +1,103 @@
+Absolutely! Here's a clean, clear checklist for your **frontend partner** — what tools and packages they need to install, **in order**, and **where** to install them.
+
+---
+
+## ✅ Installation Checklist for Vue Frontend Setup
+
+> 💡 Do this from a terminal (Command Prompt, PowerShell, or VSCode terminal)  
+> 🗂️ Start from the folder where you want to create your project
+
+---
+
+### ✅ Step 1: **Install Node.js**
+- **Required only once per machine**
+- Download and install from: https://nodejs.org/
+- Verify installation:
+```bash
+node -v
+npm -v
+```
+
+---
+
+### ✅ Step 2: **Create Vue Project with Vite**
+```bash
+npm create vite@latest chatbot-frontend
+```
+
+- Choose:
+  - Framework: `Vue`
+  - Variant: `JavaScript`
+
+👉 This creates a folder called `chatbot-frontend/`
+
+---
+
+### ✅ Step 3: **Navigate into your project**
+```bash
+cd chatbot-frontend
+```
+
+---
+
+### ✅ Step 4: **Install project dependencies**
+```bash
+npm install
+```
+
+---
+
+### ✅ Step 5: **Install Axios (for calling the API)**
+```bash
+npm install axios
+```
+
+---
+
+### ✅ (Optional but Recommended) Step 6: **Install Tailwind CSS**
+```bash
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+```
+
+Then:
+- In `tailwind.config.js`, set:
+```js
+content: ["./index.html", "./src/**/*.{vue,js,ts}"]
+```
+- In `src/assets/index.css`:
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+- In `main.js`, import the CSS:
+```js
+import './assets/index.css'
+```
+
+---
+
+### ✅ Step 7: **Run the frontend**
+```bash
+npm run dev
+```
+
+Then visit:
+```
+http://localhost:5173
+```
+
+---
+
+## 📦 Final List of Packages to Install (inside the `chatbot-frontend` folder)
+
+| Package            | Why?                                | Install Command                      |
+|--------------------|--------------------------------------|--------------------------------------|
+| Vue + Vite         | Project creation + framework         | `npm create vite@latest chatbot-frontend` |
+| Axios              | To call your Flask API               | `npm install axios`                  |
+| Tailwind (optional)| Styling (like ChatGPT)               | See Tailwind steps above             |
+
+---
+
+Let me know if you'd like me to now generate the full `ChatBot.vue` file that connects to the backend and displays the SQL + results!
