@@ -1,0 +1,92 @@
+ Final Prompt for Generating the Vue.js Frontend
+I am building a frontend in Vue.js (latest version, Composition API preferred) for a chatbot application named EON – Database Agent.
+
+The backend is already fully implemented and exposes a REST API. You only need to build the frontend that communicates with it.
+
+🧠 App Name:
+EON — Database Agent
+
+📦 API CONTRACT (Backend already exists):
+POST /api/query
+Base URL: http://localhost:5000
+
+Request Body (JSON):
+
+json
+Copy
+Edit
+{ "question": "List all products with zero stock" }
+Response Body (JSON):
+
+json
+Copy
+Edit
+{
+  "sql": "SELECT * FROM products WHERE stock = 0;",
+  "results": [
+    { "id": 1, "name": "Laptop", "stock": 0 },
+    { "id": 2, "name": "Mouse", "stock": 0 }
+  ]
+}
+🎯 GOAL:
+Build a frontend in Vue.js that behaves like ChatGPT:
+
+Display a chat interface
+
+Input field at the bottom
+
+Send user messages to the backend
+
+Show the LLM-generated SQL and result table as the bot’s response
+
+🖼️ UI REQUIREMENTS:
+Use Vue 3 with Composition API
+
+Use axios or fetch to send POST requests to /api/query
+
+Show the chat interface:
+
+Left-aligned bubble: User's question
+
+Right-aligned bubble: Bot response
+
+SQL in a styled code block
+
+DB results in a clean HTML table
+
+Input box and "Send" button fixed at the bottom (like ChatGPT)
+
+Show loading indicator while waiting for response
+
+Auto-scroll to newest message
+
+Handle API errors gracefully (show in chat)
+
+💅 Styling Guidelines:
+Use Tailwind CSS for styling if possible
+
+Keep the look clean, modern, minimal
+
+Responsive layout
+
+📦 Tech Stack:
+Framework: Vue 3 + Vite
+
+API Communication: Axios
+
+Styling: Tailwind CSS (if available)
+
+✅ Deliverables:
+One Vue component (e.g., ChatBot.vue) containing the full logic
+
+Include example usage in App.vue
+
+Everything should be functional with npm run dev
+
+Optional (Bonus):
+Allow pressing Enter to submit
+
+Show timestamps
+
+Scroll to bottom on new message
+
